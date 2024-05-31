@@ -8,18 +8,22 @@ import {
   RTCIceCandidate,
   RTCSessionDescription,
 } from 'react-native-webrtc';
-import { useSocket } from '../socket'; // Import the socket instance from context
+import { useSocket } from '../socket';
 import { StackParamList } from '../navigation/types';
-import { RouteProp } from '@react-navigation/native';
+import {
+  NavigationProp,
+  RouteProp,
+  useNavigation,
+} from '@react-navigation/native';
+import VideoOn from '../../asset/VideoOn';
+import VideoOff from '../../asset/VideoOff';
+import MicOn from '../../asset/MicOn';
+import MicOff from '../../asset/MicOff';
 
 const configuration = {
   iceServers: [
-    {
-      urls: 'stun:stun.l.google.com:19302',
-    },
-    {
-      urls: 'stun:stun1.l.google.com:19302',
-    },
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
   ],
 };
 
@@ -34,7 +38,8 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [microphoneEnabled, setMicrophoneEnabled] = useState(true);
   const pc = useRef<RTCPeerConnection | null>(null);
-  const socket = useSocket(); // Use the socket from context
+  const socket = useSocket();
+  const navigation = useNavigation<NavigationProp<StackParamList>>();
 
   useEffect(() => {
     const initializePeerConnection = () => {
@@ -91,17 +96,6 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
       pc.current?.setRemoteDescription(description);
     });
 
-    socket.on('newCall', async ({ rtcMessage }) => {
-      const description = new RTCSessionDescription(rtcMessage);
-      await pc.current?.setRemoteDescription(description);
-      const answer = await pc.current?.createAnswer();
-      await pc.current?.setLocalDescription(answer);
-      socket.emit('answerCall', {
-        callerId: recipientId,
-        rtcMessage: answer,
-      });
-    });
-
     return () => {
       if (pc.current) {
         pc.current.close();
@@ -110,42 +104,79 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
     };
   }, [isCaller, recipientId, socket]);
 
-  const handleEndCall = () => {
-    if (pc.current) {
-      pc.current.close();
-      pc.current = null;
-      setLocalStream(null);
-      setRemoteStream(null);
-    }
-  };
+  // Handle end call basically copy endCall from Calling and IncomingCall
+  useEffect(() => {
+    const handleCallEnded = () => {
+      console.log('Call Ended');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+    };
+
+    socket.on('callEnded', handleCallEnded);
+
+    return () => {
+      socket.off('callEnded', handleCallEnded);
+    };
+  }, [socket, navigation]);
 
   const toggleCamera = () => {
     if (localStream) {
-      localStream.getVideoTracks().forEach(track => {
+      const videoTracks = localStream.getVideoTracks();
+      videoTracks.forEach(track => {
         track.enabled = !cameraEnabled;
       });
       setCameraEnabled(!cameraEnabled);
+
+      // If camera is to be disabled, stop the tracks
+      if (cameraEnabled) {
+        videoTracks.forEach(track => track.stop());
+        setLocalStream(prevStream => {
+          const newStream = new MediaStream(prevStream.getAudioTracks()); // keep audio tracks
+          return newStream;
+        });
+      } else {
+        // Camera is to be enabled, restart the video
+        mediaDevices
+          .getUserMedia({ video: true })
+          .then(newStream => {
+            newStream.getVideoTracks().forEach(track => {
+              localStream.addTrack(track);
+            });
+            setLocalStream(prevStream => {
+              const completeStream = new MediaStream([
+                ...prevStream.getTracks(),
+                ...newStream.getTracks(),
+              ]);
+              return completeStream;
+            });
+          })
+          .catch(error => console.error('Failed to get video stream', error));
+      }
     }
   };
 
   const toggleMicrophone = () => {
-    if (localStream) {
-      localStream.getAudioTracks().forEach(track => {
-        track.enabled = !microphoneEnabled;
-      });
-      setMicrophoneEnabled(!microphoneEnabled);
-    }
+    localStream?.getAudioTracks().forEach(track => {
+      track.enabled = !microphoneEnabled;
+    });
+    setMicrophoneEnabled(!microphoneEnabled);
+  };
+
+  const handleEndCall = () => {
+    socket.emit('endCall');
+    pc.current?.close();
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Video Chat</Text>
       <View style={styles.videoContainer}>
         {localStream && (
           <RTCView
             streamURL={localStream.toURL()}
             style={styles.video}
-            mirror
+            mirror={cameraEnabled}
           />
         )}
         {remoteStream && (
@@ -154,14 +185,10 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
       </View>
       <View style={styles.buttonRow}>
         <TouchableOpacity style={styles.button} onPress={toggleCamera}>
-          <Text style={styles.buttonText}>
-            {cameraEnabled ? 'Disable Camera' : 'Enable Camera'}
-          </Text>
+          {cameraEnabled ? <VideoOn /> : <VideoOff />}
         </TouchableOpacity>
         <TouchableOpacity style={styles.button} onPress={toggleMicrophone}>
-          <Text style={styles.buttonText}>
-            {microphoneEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
-          </Text>
+          {microphoneEnabled ? <MicOn /> : <MicOff />}
         </TouchableOpacity>
       </View>
       <TouchableOpacity style={styles.endCallButton} onPress={handleEndCall}>
@@ -178,45 +205,39 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#f5f5f5',
   },
-  title: {
-    fontSize: 24,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
   videoContainer: {
+    flexDirection: 'column',
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   video: {
+    flex: 1,
+    height: '30%',
     width: '100%',
-    height: 300,
-    backgroundColor: '#ccc',
+    marginVertical: 10,
+    backgroundColor: '#5d5e5e',
   },
   buttonRow: {
+    height: 45,
+    padding: 0,
     flexDirection: 'row',
     justifyContent: 'space-around',
     width: '100%',
   },
   button: {
-    backgroundColor: '#007BFF',
+    flex: 1,
+    marginHorizontal: 5,
     padding: 10,
     borderRadius: 5,
-    marginVertical: 10,
-    width: '40%',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 14,
   },
   endCallButton: {
     backgroundColor: '#FF5D5D',
     padding: 15,
     borderRadius: 10,
     marginVertical: 10,
-    width: '80%',
+    width: '50%',
     alignSelf: 'center',
     justifyContent: 'center',
     alignItems: 'center',

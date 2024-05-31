@@ -21,7 +21,12 @@ const Calling: React.FC<CallingProps> = ({ route }) => {
   useEffect(() => {
     if (socket) {
       socket.on('callAnswered', () => {
-        navigation.navigate('VideoChat', { isCaller: true, recipientId });
+        navigation.reset({
+          index: 0,
+          routes: [
+            { name: 'VideoChat', params: { isCaller: true, recipientId } },
+          ],
+        });
       });
 
       socket.on('callEnded', () => {

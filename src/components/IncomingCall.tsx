@@ -40,15 +40,26 @@ const IncomingCall: React.FC<IncomingCallScreenProps> = ({ route }) => {
 
   const handleAcceptCall = () => {
     socket.emit('answerCall', { callerId });
-    navigation.navigate('VideoChat', {
-      isCaller: false,
-      recipientId: callerId,
+    navigation.reset({
+      index: 0,
+      routes: [
+        {
+          name: 'VideoChat',
+          params: {
+            isCaller: false,
+            recipientId: callerId,
+          },
+        },
+      ],
     });
   };
 
   const handleRejectCall = () => {
     socket.emit('endCall');
-    navigation.navigate('CallMenu');
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Home' }, { name: 'CallMenu' }],
+    });
   };
 
   return (

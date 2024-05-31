@@ -23,6 +23,16 @@ const HomeScreen = () => {
         <Text style={styles.buttonText}>Start Video Chat</Text>
       </TouchableOpacity>
       <TouchableOpacity
+        style={{ backgroundColor: '#fa79' }}
+        onPress={() =>
+          navigation.navigate('DebugVideoChat', {
+            isCaller: true,
+            recipientId: 'adsfads',
+          })
+        }>
+        <Text style={styles.buttonText}>Debug Video Chat Screen</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
         style={styles.settingsButton}
         onPress={() => navigation.navigate('AppSettings')}>
         <Text style={styles.buttonText}>Settings</Text>

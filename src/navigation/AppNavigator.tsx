@@ -35,12 +35,17 @@ const AppNavigator = () => {
         <Stack.Screen name="CallMenu" component={CallMenu} />
         <Stack.Screen name="Calling" component={Calling} />
         <Stack.Screen name="IncomingCall" component={IncomingCall} />
-        <Stack.Screen name="VideoChat" component={VideoChat} />
+        <Stack.Screen
+          name="VideoChat"
+          component={VideoChat}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="ProfileSettings"
           component={ProfileSettingsScreen}
         />
         <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
+        <Stack.Screen name="DebugVideoChat" component={VideoChat} />
       </Stack.Navigator>
     </NavigationContainer>
   );

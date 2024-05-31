@@ -8,4 +8,5 @@ export type StackParamList = {
   VideoChat: { isCaller: boolean; recipientId: string };
   ProfileSettings: undefined;
   AppSettings: undefined;
+  DebugVideoChat: { isCaller: boolean; recipientId: string };
 };

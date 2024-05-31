@@ -58,8 +58,9 @@ module.exports.initIO = httpServer => {
       });
     });
 
-    socket.on('endCall', () => {
-      socket.broadcast.emit('callEnded');
+    socket.on('endCall', props => {
+      IO.sockets.emit('callEnded');
+      //socket.broadcast.emit('callEnded');
     });
   });
 };
