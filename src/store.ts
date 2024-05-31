@@ -1,9 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
 import userReducer from './reducers/userReducer';
+import callerIdReducer from './reducers/callerIdReducer';
 
 const store = configureStore({
   reducer: {
     user: userReducer,
+    callersInfo: callerIdReducer,
   },
 });
 

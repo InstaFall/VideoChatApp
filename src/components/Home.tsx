@@ -19,7 +19,7 @@ const HomeScreen = () => {
       <Text style={styles.title}>Hello, {user.fullName}!</Text>
       <TouchableOpacity
         style={styles.videoChatButton}
-        onPress={() => navigation.navigate('VideoChat')}>
+        onPress={() => navigation.navigate('CallMenu')}>
         <Text style={styles.buttonText}>Start Video Chat</Text>
       </TouchableOpacity>
       <TouchableOpacity

@@ -6,7 +6,7 @@ import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { StackParamList } from '../navigation/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const WelcomeScreen = () => {
+const Register = () => {
   const [countryCode, setCountryCode] = useState('+');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [fullName, setFullName] = useState('');
@@ -113,4 +113,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default WelcomeScreen;
+export default Register;

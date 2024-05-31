@@ -1,12 +1,15 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import WelcomeScreen from '../components/WelcomeScreen';
-import HomeScreen from '../components/HomeScreen';
-import VideoChatScreen from '../components/VideoChatScreen';
+import Register from '../components/Register';
+import HomeScreen from '../components/Home';
+import VideoChat from '../components/VideoChat';
 import Main from '../components/Main';
-import ProfileSettingsScreen from '../components/ProfileSettingsScreen';
+import ProfileSettingsScreen from '../components/ProfileSettings';
 import AppSettingsScreen from '../components/AppSettingsScreen';
+import CallMenu from '../components/CallMenu';
+import Calling from '../components/Calling';
+import IncomingCall from '../components/IncomingCall';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,8 +23,8 @@ const AppNavigator = () => {
           options={{ headerShown: false }}
         />
         <Stack.Screen
-          name="Welcome"
-          component={WelcomeScreen}
+          name="Register"
+          component={Register}
           options={{ headerShown: false }}
         />
         <Stack.Screen
@@ -29,7 +32,10 @@ const AppNavigator = () => {
           component={HomeScreen}
           options={{ headerShown: false }}
         />
-        <Stack.Screen name="VideoChat" component={VideoChatScreen} />
+        <Stack.Screen name="CallMenu" component={CallMenu} />
+        <Stack.Screen name="Calling" component={Calling} />
+        <Stack.Screen name="IncomingCall" component={IncomingCall} />
+        <Stack.Screen name="VideoChat" component={VideoChat} />
         <Stack.Screen
           name="ProfileSettings"
           component={ProfileSettingsScreen}

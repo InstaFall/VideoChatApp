@@ -21,7 +21,7 @@ const Main = () => {
       } else {
         navigation.reset({
           index: 0,
-          routes: [{ name: 'Welcome' }],
+          routes: [{ name: 'Register' }],
         });
       }
     };
