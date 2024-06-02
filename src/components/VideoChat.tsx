@@ -20,12 +20,24 @@ import VideoOff from '../../asset/VideoOff';
 import MicOn from '../../asset/MicOn';
 import MicOff from '../../asset/MicOff';
 
-const configuration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
+const fetchIceServers = async () => {
+  const response = await fetch(
+    'https://trkcllturn.metered.live/api/v1/turn/credentials?apiKey=87275a8c14f93aef84d24ca0c2826862484f',
+  );
+  return await response.json();
 };
+
+// const configuration = {
+//   iceServers: [
+//     { urls: 'stun:stun.l.google.com:19302' },
+//     { urls: 'stun:stun1.l.google.com:19302' },
+//     {
+//       urls: 'turn:numb.viagenie.ca',
+//       credential: 'muazkh',
+//       username: 'webrtc@live.com',
+//     },
+//   ],
+// };
 
 interface VideoChatProps {
   route: RouteProp<StackParamList, 'VideoChat'>;
@@ -40,60 +52,118 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
   const pc = useRef<RTCPeerConnection | null>(null);
   const socket = useSocket();
   const navigation = useNavigation<NavigationProp<StackParamList>>();
+  const iceCandidates = useRef<any[]>([]);
 
   useEffect(() => {
-    const initializePeerConnection = () => {
-      pc.current = new RTCPeerConnection(configuration);
+    const init = async () => {
+      const iceServers = await fetchIceServers();
+      pc.current = new RTCPeerConnection({ iceServers: iceServers });
 
-      pc.current.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+      pc.current.onicecandidate = event => {
         if (event.candidate) {
+          //console.log('Sending ICE candidate:', event.candidate);
           socket.emit('ICEcandidate', {
             calleeId: recipientId,
-            rtcMessage: event.candidate,
+            rtcMessage: JSON.stringify(event.candidate),
           });
         }
       };
 
-      pc.current.ontrack = (event: RTCTrackEvent) => {
-        setRemoteStream(event.streams[0]);
-      };
-    };
-
-    const startLocalStream = async () => {
-      try {
-        const stream = await mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-        setLocalStream(stream);
-        stream.getTracks().forEach(track => {
-          pc.current?.addTrack(track, stream);
-        });
-
-        if (isCaller) {
-          const offer = await pc.current?.createOffer({});
-          await pc.current?.setLocalDescription(offer);
-          socket.emit('call', {
-            calleeId: recipientId,
-            rtcMessage: offer,
-          });
+      pc.current.ontrack = event => {
+        console.log('Received remote track:', event.track);
+        if (event.streams && event.streams[0]) {
+          setRemoteStream(event.streams[0]);
+          // console.log(
+          //   'Remote stream set from ontrack event.streams[0]',
+          //   event.streams[0],
+          // );
+        } else {
+          const remoteStream = new MediaStream([event.track]);
+          setRemoteStream(remoteStream);
+          console.log(
+            'Remote stream set from new MediaStream([event.track])',
+            remoteStream,
+          );
         }
-      } catch (error) {
-        console.error('Failed to get local stream', error);
+      };
+
+      pc.current.oniceconnectionstatechange = () => {
+        console.log('ICE connection state:', pc.current?.iceConnectionState);
+        if (pc.current?.iceConnectionState === 'failed') {
+          console.log('ICE connection failed, TURN server might be needed.');
+        }
+      };
+
+      const stream = await mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      setLocalStream(stream);
+      stream.getTracks().forEach(track => {
+        //console.log('Adding local track:', track);
+        pc.current?.addTrack(track, stream);
+      });
+
+      if (isCaller) {
+        const offer = await pc.current.createOffer();
+        await pc.current.setLocalDescription(offer);
+        //console.log('Sending offer:', offer);
+        socket.emit('call', {
+          calleeId: recipientId,
+          rtcMessage: JSON.stringify(offer),
+        });
       }
     };
 
-    startLocalStream();
-    initializePeerConnection();
+    init();
 
-    socket.on('ICEcandidate', ({ rtcMessage }) => {
-      const candidate = new RTCIceCandidate(rtcMessage);
-      pc.current?.addIceCandidate(candidate);
+    socket.on('newCall', async data => {
+      //console.log('Received new call:', data);
+      const rtcMessage = JSON.parse(data.rtcMessage);
+      await pc.current?.setRemoteDescription(
+        new RTCSessionDescription(rtcMessage),
+      );
+      //console.log('Local SDP Offer:', pc.current.localDescription?.sdp);
+      //console.log('Remote SDP Answer:', pc.current.remoteDescription?.sdp);
+      const answer = await pc.current?.createAnswer();
+      await pc.current?.setLocalDescription(answer);
+      //console.log('Sending answer:', answer);
+      socket.emit('answerCall', {
+        callerId: data.callerId,
+        rtcMessage: JSON.stringify(answer),
+      });
+
+      // Process any stored ICE candidates
+      iceCandidates.current.forEach(async candidate => {
+        await pc.current?.addIceCandidate(new RTCIceCandidate(candidate));
+      });
+      iceCandidates.current = [];
     });
 
-    socket.on('callAnswered', ({ rtcMessage }) => {
-      const description = new RTCSessionDescription(rtcMessage);
-      pc.current?.setRemoteDescription(description);
+    socket.on('callAnswered', async data => {
+      //console.log('Call answered:', data);
+      const rtcMessage = JSON.parse(data.rtcMessage);
+      await pc.current?.setRemoteDescription(
+        new RTCSessionDescription(rtcMessage),
+      );
+      //console.log('Local SDP Offer:', pc.current.localDescription?.sdp);
+      //console.log('Remote SDP Answer:', pc.current.remoteDescription?.sdp);
+
+      // Process any stored ICE candidates
+      iceCandidates.current.forEach(async candidate => {
+        await pc.current?.addIceCandidate(new RTCIceCandidate(candidate));
+      });
+      iceCandidates.current = [];
+    });
+
+    socket.on('ICEcandidate', async data => {
+      console.log('Received ICE candidate:', data);
+      const rtcMessage = JSON.parse(data.rtcMessage);
+      if (pc.current?.remoteDescription) {
+        await pc.current?.addIceCandidate(new RTCIceCandidate(rtcMessage));
+      } else {
+        iceCandidates.current.push(rtcMessage);
+      }
     });
 
     return () => {
@@ -104,20 +174,16 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
     };
   }, [isCaller, recipientId, socket]);
 
-  // Handle end call basically copy endCall from Calling and IncomingCall
   useEffect(() => {
-    const handleCallEnded = () => {
-      console.log('Call Ended');
+    socket.on('callEnded', () => {
       navigation.reset({
         index: 0,
         routes: [{ name: 'Home' }],
       });
-    };
-
-    socket.on('callEnded', handleCallEnded);
+    });
 
     return () => {
-      socket.off('callEnded', handleCallEnded);
+      socket.off('callEnded');
     };
   }, [socket, navigation]);
 
@@ -128,32 +194,6 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
         track.enabled = !cameraEnabled;
       });
       setCameraEnabled(!cameraEnabled);
-
-      // If camera is to be disabled, stop the tracks
-      if (cameraEnabled) {
-        videoTracks.forEach(track => track.stop());
-        setLocalStream(prevStream => {
-          const newStream = new MediaStream(prevStream.getAudioTracks()); // keep audio tracks
-          return newStream;
-        });
-      } else {
-        // Camera is to be enabled, restart the video
-        mediaDevices
-          .getUserMedia({ video: true })
-          .then(newStream => {
-            newStream.getVideoTracks().forEach(track => {
-              localStream.addTrack(track);
-            });
-            setLocalStream(prevStream => {
-              const completeStream = new MediaStream([
-                ...prevStream.getTracks(),
-                ...newStream.getTracks(),
-              ]);
-              return completeStream;
-            });
-          })
-          .catch(error => console.error('Failed to get video stream', error));
-      }
     }
   };
 
@@ -179,16 +219,26 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
             mirror={cameraEnabled}
           />
         )}
-        {remoteStream && (
+        {remoteStream ? (
           <RTCView streamURL={remoteStream.toURL()} style={styles.video} />
+        ) : (
+          <Text>Waiting for remote stream...</Text>
         )}
       </View>
       <View style={styles.buttonRow}>
         <TouchableOpacity style={styles.button} onPress={toggleCamera}>
-          {cameraEnabled ? <VideoOn /> : <VideoOff />}
+          {cameraEnabled ? (
+            <VideoOn width={24} height={23} />
+          ) : (
+            <VideoOff width={44} height={35} />
+          )}
         </TouchableOpacity>
         <TouchableOpacity style={styles.button} onPress={toggleMicrophone}>
-          {microphoneEnabled ? <MicOn /> : <MicOff />}
+          {microphoneEnabled ? (
+            <MicOn width={24} height={24} />
+          ) : (
+            <MicOff width={24} height={24} />
+          )}
         </TouchableOpacity>
       </View>
       <TouchableOpacity style={styles.endCallButton} onPress={handleEndCall}>
