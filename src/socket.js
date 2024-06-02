@@ -10,7 +10,7 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (localCallerId) {
-      const newSocket = io('http://172.20.10.5:3500', {
+      const newSocket = io('http://192.168.1.10:3500', {
         query: { callerId: localCallerId },
       });
       setSocket(newSocket);
