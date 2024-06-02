@@ -5,7 +5,6 @@ import callerIdReducer from './reducers/callerIdReducer';
 const store = configureStore({
   reducer: {
     user: userReducer,
-    callersInfo: callerIdReducer,
   },
 });
 

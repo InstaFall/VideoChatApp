@@ -1,11 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
 import { useSelector } from 'react-redux';
-
 export const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
-  const { localCallerId } = useSelector(state => state.callersInfo);
+  const localCallerId = useSelector(state => state.user.callerId);
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
