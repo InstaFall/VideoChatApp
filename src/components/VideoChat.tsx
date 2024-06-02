@@ -1,5 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  PermissionsAndroid,
+  Animated,
+  TouchableWithoutFeedback,
+  ActivityIndicator,
+} from 'react-native';
 import {
   mediaDevices,
   RTCPeerConnection,
@@ -19,6 +29,16 @@ import VideoOn from '../../asset/VideoOn';
 import VideoOff from '../../asset/VideoOff';
 import MicOn from '../../asset/MicOn';
 import MicOff from '../../asset/MicOff';
+import CallEnd from '../../asset/CallEnd';
+
+async function requestPermissions() {
+  if (Platform.OS === 'android') {
+    await PermissionsAndroid.requestMultiple([
+      PermissionsAndroid.PERMISSIONS.CAMERA,
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    ]);
+  }
+}
 
 const fetchIceServers = async () => {
   const response = await fetch(
@@ -37,11 +57,27 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [microphoneEnabled, setMicrophoneEnabled] = useState(true);
+  const [buttonVisible, setButtonVisible] = useState(false);
 
+  const endCallButtonPosition = useRef(new Animated.Value(100)).current;
+  const visibilityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const pc = useRef<RTCPeerConnection | null>(null);
   const socket = useSocket();
   const navigation = useNavigation<NavigationProp<StackParamList>>();
   const iceCandidates = useRef<any[]>([]);
+
+  useEffect(() => {
+    async function setupMedia() {
+      await requestPermissions();
+      const stream = await mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      setLocalStream(stream);
+    }
+
+    setupMedia();
+  }, []);
 
   useEffect(() => {
     const initializePeerConnection = async () => {
@@ -158,32 +194,6 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
         track.enabled = !cameraEnabled;
       });
       setCameraEnabled(!cameraEnabled);
-
-      // If camera is to be disabled, stop the tracks
-      if (cameraEnabled) {
-        videoTracks.forEach(track => track.stop());
-        setLocalStream(prevStream => {
-          const newStream = new MediaStream(prevStream.getAudioTracks()); // keep audio tracks
-          return newStream;
-        });
-      } else {
-        // Camera is to be enabled, restart the video
-        mediaDevices
-          .getUserMedia({ video: true })
-          .then(newStream => {
-            newStream.getVideoTracks().forEach(track => {
-              localStream.addTrack(track);
-            });
-            setLocalStream(prevStream => {
-              const completeStream = new MediaStream([
-                ...prevStream.getTracks(),
-                ...newStream.getTracks(),
-              ]);
-              return completeStream;
-            });
-          })
-          .catch(error => console.error('Failed to get video stream', error));
-      }
     }
   };
 
@@ -199,42 +209,87 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
     pc.current?.close();
   };
 
+  const toggleButtonVisibility = () => {
+    if (!buttonVisible) {
+      setButtonVisible(true);
+      Animated.timing(endCallButtonPosition, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+      // Set a timeout to automatically hide the button after 3 seconds
+      if (visibilityTimeoutRef.current) {
+        clearTimeout(visibilityTimeoutRef.current);
+      }
+      visibilityTimeoutRef.current = setTimeout(() => {
+        Animated.timing(endCallButtonPosition, {
+          toValue: 100,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+        setButtonVisible(false);
+      }, 3000); // Adjust the timeout as needed
+    } else {
+      if (visibilityTimeoutRef.current) {
+        clearTimeout(visibilityTimeoutRef.current);
+      }
+      Animated.timing(endCallButtonPosition, {
+        toValue: 100,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(() => setButtonVisible(false));
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <View style={styles.videoContainer}>
-        {localStream && (
-          <RTCView
-            streamURL={localStream.toURL()}
-            style={styles.video}
-            mirror={cameraEnabled}
-          />
-        )}
-        {remoteStream ? (
-          <RTCView streamURL={remoteStream.toURL()} style={styles.video} />
-        ) : (
-          <Text>Waiting for remote stream...</Text>
-        )}
-      </View>
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.button} onPress={toggleCamera}>
-          {cameraEnabled ? (
-            <VideoOn width={24} height={23} />
-          ) : (
-            <VideoOff width={44} height={35} />
+    <TouchableWithoutFeedback onPress={toggleButtonVisibility}>
+      <View style={styles.container}>
+        <View style={styles.videoContainer}>
+          {localStream && (
+            <RTCView
+              streamURL={localStream.toURL()}
+              style={styles.video}
+              mirror={cameraEnabled}
+            />
           )}
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={toggleMicrophone}>
-          {microphoneEnabled ? (
-            <MicOn width={24} height={24} />
+          {remoteStream ? (
+            <RTCView streamURL={remoteStream.toURL()} style={styles.video} />
           ) : (
-            <MicOff width={24} height={24} />
+            <ActivityIndicator
+              size="large"
+              style={{ height: '45%', transform: [{ scale: 1.5 }] }}
+            />
           )}
-        </TouchableOpacity>
+        </View>
+        <View style={styles.buttonRow}>
+          <TouchableOpacity style={styles.button} onPress={toggleCamera}>
+            {cameraEnabled ? (
+              <VideoOn width={24} height={23} />
+            ) : (
+              <VideoOff width={44} height={35} />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={toggleMicrophone}>
+            {microphoneEnabled ? (
+              <MicOn width={24} height={24} />
+            ) : (
+              <MicOff width={24} height={24} />
+            )}
+          </TouchableOpacity>
+        </View>
+        <Animated.View
+          style={[
+            styles.endCallButton,
+            {
+              transform: [{ translateY: endCallButtonPosition }],
+            },
+          ]}>
+          <TouchableOpacity onPress={handleEndCall}>
+            <CallEnd width={30} height={30} />
+          </TouchableOpacity>
+        </Animated.View>
       </View>
-      <TouchableOpacity style={styles.endCallButton} onPress={handleEndCall}>
-        <Text style={styles.endCallButtonText}>End Call</Text>
-      </TouchableOpacity>
-    </View>
+    </TouchableWithoutFeedback>
   );
 };
 
@@ -252,8 +307,8 @@ const styles = StyleSheet.create({
   },
   video: {
     flex: 1,
-    height: '30%',
     width: '100%',
+    height: '100%',
     marginVertical: 10,
     backgroundColor: '#5d5e5e',
   },
@@ -273,18 +328,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   endCallButton: {
+    position: 'absolute',
     backgroundColor: '#FF5D5D',
-    padding: 15,
     borderRadius: 10,
-    marginVertical: 10,
-    width: '50%',
+    width: '20%',
     alignSelf: 'center',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  endCallButtonText: {
-    color: '#fff',
-    fontSize: 18,
+    padding: 10,
+    bottom: 10,
   },
 });
 
