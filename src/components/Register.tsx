@@ -15,7 +15,7 @@ const Register = () => {
   const dispatch = useDispatch();
   const navigation = useNavigation<NavigationProp<StackParamList>>();
 
-  const [register, { loading, error }] = useMutation(REGISTER_USER, {
+  const [register, { data, loading, error }] = useMutation(REGISTER_USER, {
     awaitRefetchQueries: true,
     onError: error => {
       if (error.graphQLErrors) {
@@ -33,9 +33,19 @@ const Register = () => {
       const fullPhoneNumber = `${countryCode}${phoneNumber}`;
       AsyncStorage.setItem(
         'user',
-        JSON.stringify({ phoneNumber: fullPhoneNumber, fullName }),
+        JSON.stringify({
+          phoneNumber: fullPhoneNumber,
+          fullName,
+          callerId: data.register.callerId,
+        }),
       );
-      dispatch(setUser({ phoneNumber: fullPhoneNumber, fullName }));
+      dispatch(
+        setUser({
+          phoneNumber: fullPhoneNumber,
+          fullName,
+          callerId: data.register.callerId,
+        }),
+      );
       navigation.reset({
         index: 0,
         routes: [{ name: 'Home' }],

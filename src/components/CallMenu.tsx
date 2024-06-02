@@ -12,18 +12,28 @@ import { generateCallerId } from '../reducers/callerIdReducer';
 import { RootState } from '../store';
 import { useSocket } from '../socket'; // Import useSocket
 import { StackParamList } from '../navigation/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loadUser } from '../reducers/userReducer';
 
 const CallMenu = () => {
   const [recipientId, setRecipientId] = useState('');
   const navigation = useNavigation<NavigationProp<StackParamList>>();
-  const { localCallerId } = useSelector(
-    (state: RootState) => state.callersInfo,
-  );
-  const dispatch = useDispatch();
+  const localCallerId = useSelector((state: RootState) => state.user.callerId);
   const socket = useSocket();
+  const dispatch = useDispatch();
 
   useEffect(() => {
-    dispatch(generateCallerId());
+    const loadUserData = async () => {
+      const userDataJson = await AsyncStorage.getItem('user');
+      if (userDataJson) {
+        const userData = JSON.parse(userDataJson);
+        dispatch(loadUser(userData));
+      }
+    };
+
+    if (!localCallerId) {
+      loadUserData();
+    }
   }, [dispatch]);
 
   useEffect(() => {
@@ -37,7 +47,7 @@ const CallMenu = () => {
         socket.off('newCall');
       };
     }
-  }, [socket, navigation]);
+  }, [socket, navigation, localCallerId]);
 
   const handleCall = () => {
     if (recipientId && socket) {
