@@ -20,7 +20,7 @@ const CallMenu = () => {
     (state: RootState) => state.callersInfo,
   );
   const dispatch = useDispatch();
-  const socket = useSocket(); // Use the socket from context
+  const socket = useSocket();
 
   useEffect(() => {
     dispatch(generateCallerId());
