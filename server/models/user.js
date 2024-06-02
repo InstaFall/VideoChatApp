@@ -14,6 +14,11 @@ const schema = new mongoose.Schema({
     required: true,
     minlength: 3,
   },
+  callerId: {
+    type: String,
+    unique: true,
+    default: () => Math.floor(10000 + Math.random() * 90000).toString(),
+  },
 });
 
 schema.set('toJSON', {
