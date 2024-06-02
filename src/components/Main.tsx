@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { loadUser } from '../reducers/userReducer';
+import { loadUser, logout } from '../reducers/userReducer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
@@ -24,6 +24,9 @@ const Main = () => {
             routes: [{ name: 'Home' }],
           });
         } else {
+          // if user not found in the database
+          AsyncStorage.removeItem('user');
+          dispatch(logout());
           navigation.reset({
             index: 0,
             routes: [{ name: 'Register' }],
@@ -34,6 +37,10 @@ const Main = () => {
       onError: error => {
         console.error('Error fetching user data:', error);
         setLoading(false);
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Register' }],
+        });
       },
     });
 
@@ -42,7 +49,7 @@ const Main = () => {
       const userData = await AsyncStorage.getItem('user');
       if (userData) {
         const { phoneNumber } = JSON.parse(userData);
-        getUserByPhoneNumber({ variables: { phoneNumber } });
+        await getUserByPhoneNumber({ variables: { phoneNumber } });
       } else {
         setLoading(false);
         navigation.reset({
