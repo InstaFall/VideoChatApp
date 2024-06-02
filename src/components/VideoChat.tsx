@@ -37,13 +37,16 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [microphoneEnabled, setMicrophoneEnabled] = useState(true);
+
   const pc = useRef<RTCPeerConnection | null>(null);
   const socket = useSocket();
   const navigation = useNavigation<NavigationProp<StackParamList>>();
+  const iceCandidates = useRef<any[]>([]);
 
   useEffect(() => {
-    const initializePeerConnection = () => {
-      pc.current = new RTCPeerConnection(configuration);
+    const initializePeerConnection = async () => {
+      const iceServers = await fetchIceServers();
+      pc.current = new RTCPeerConnection({ iceServers: iceServers });
 
       pc.current.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
         if (event.candidate) {
@@ -54,46 +57,73 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
         }
       };
 
-      pc.current.ontrack = (event: RTCTrackEvent) => {
-        setRemoteStream(event.streams[0]);
-      };
-    };
-
-    const startLocalStream = async () => {
-      try {
-        const stream = await mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-        setLocalStream(stream);
-        stream.getTracks().forEach(track => {
-          pc.current?.addTrack(track, stream);
-        });
-
-        if (isCaller) {
-          const offer = await pc.current?.createOffer({});
-          await pc.current?.setLocalDescription(offer);
-          socket.emit('call', {
-            calleeId: recipientId,
-            rtcMessage: offer,
-          });
+      pc.current.ontrack = event => {
+        if (event.streams && event.streams[0]) {
+          setRemoteStream(event.streams[0]);
+        } else {
+          const remoteStream = new MediaStream([event.track]);
+          setRemoteStream(remoteStream);
         }
-      } catch (error) {
-        console.error('Failed to get local stream', error);
+      };
+
+      const stream = await mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      setLocalStream(stream);
+      stream.getTracks().forEach(track => {
+        pc.current?.addTrack(track, stream);
+      });
+
+      if (isCaller) {
+        const offer = await pc.current?.createOffer();
+        await pc.current?.setLocalDescription(offer);
+        socket.emit('call', {
+          calleeId: recipientId,
+          rtcMessage: offer,
+        });
       }
     };
 
-    startLocalStream();
     initializePeerConnection();
 
-    socket.on('ICEcandidate', ({ rtcMessage }) => {
-      const candidate = new RTCIceCandidate(rtcMessage);
-      pc.current?.addIceCandidate(candidate);
+    socket.on('newCall', async data => {
+      const rtcMessage = data.rtcMessage;
+      await pc.current?.setRemoteDescription(
+        new RTCSessionDescription(rtcMessage),
+      );
+      const answer = await pc.current?.createAnswer();
+      await pc.current?.setLocalDescription(answer);
+      socket.emit('answerCall', {
+        callerId: data.callerId,
+        rtcMessage: answer,
+      });
+
+      iceCandidates.current.forEach(async candidate => {
+        await pc.current?.addIceCandidate(new RTCIceCandidate(candidate));
+      });
+      iceCandidates.current = [];
     });
 
-    socket.on('callAnswered', ({ rtcMessage }) => {
-      const description = new RTCSessionDescription(rtcMessage);
-      pc.current?.setRemoteDescription(description);
+    socket.on('ICEcandidate', async data => {
+      const rtcMessage = data.rtcMessage;
+      if (pc.current?.remoteDescription) {
+        await pc.current?.addIceCandidate(new RTCIceCandidate(rtcMessage));
+      } else {
+        iceCandidates.current.push(rtcMessage);
+      }
+    });
+
+    socket.on('callAnswered', async data => {
+      const rtcMessage = data.rtcMessage;
+      await pc.current?.setRemoteDescription(
+        new RTCSessionDescription(rtcMessage),
+      );
+
+      iceCandidates.current.forEach(async candidate => {
+        await pc.current?.addIceCandidate(new RTCIceCandidate(candidate));
+      });
+      iceCandidates.current = [];
     });
 
     return () => {
@@ -179,16 +209,26 @@ const VideoChat: React.FC<VideoChatProps> = ({ route }) => {
             mirror={cameraEnabled}
           />
         )}
-        {remoteStream && (
+        {remoteStream ? (
           <RTCView streamURL={remoteStream.toURL()} style={styles.video} />
+        ) : (
+          <Text>Waiting for remote stream...</Text>
         )}
       </View>
       <View style={styles.buttonRow}>
         <TouchableOpacity style={styles.button} onPress={toggleCamera}>
-          {cameraEnabled ? <VideoOn /> : <VideoOff />}
+          {cameraEnabled ? (
+            <VideoOn width={24} height={23} />
+          ) : (
+            <VideoOff width={44} height={35} />
+          )}
         </TouchableOpacity>
         <TouchableOpacity style={styles.button} onPress={toggleMicrophone}>
-          {microphoneEnabled ? <MicOn /> : <MicOff />}
+          {microphoneEnabled ? (
+            <MicOn width={24} height={24} />
+          ) : (
+            <MicOff width={24} height={24} />
+          )}
         </TouchableOpacity>
       </View>
       <TouchableOpacity style={styles.endCallButton} onPress={handleEndCall}>
