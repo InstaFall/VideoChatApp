@@ -14,6 +14,7 @@ const typeDefs = `
 type User {
   phoneNumber: String!
   fullName: String!
+  callerId: String!
   id: ID!
 }
 type Token {
@@ -58,8 +59,19 @@ const resolvers = {
         throw new Error('Phone number is already registered');
       }
 
-      const newUser = new User(args);
-      return await newUser.save();
+      let callerId;
+      let isUnique = false;
+      while (!isUnique) {
+        callerId = Math.floor(10000 + Math.random() * 90000).toString();
+        const existingId = await User.findOne({ callerId });
+        if (!existingId) {
+          isUnique = true;
+        }
+      }
+
+      const newUser = new User({ ...args, callerId });
+      const result = await newUser.save();
+      return result;
     },
     editUserName: async (root, args) => {
       const { phoneNumber, fullName } = args;
