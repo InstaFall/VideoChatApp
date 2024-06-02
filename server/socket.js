@@ -1,30 +1,35 @@
 const { Server } = require('socket.io');
 let IO;
 
-module.exports.initIO = httpServer => {
+module.exports.initIO = (httpServer) => {
   IO = new Server(httpServer, {
     cors: {
       origin: '*',
     },
   });
 
+  const User = require('./models/user');
   IO.use((socket, next) => {
-    console.log('Handshake Query:', socket.handshake.query);
-    if (socket.handshake.query && socket.handshake.query.callerId) {
-      let callerId = socket.handshake.query.callerId;
-      socket.user = callerId;
-      next();
+    const callerId = socket.handshake.query.callerId;
+    if (callerId) {
+      User.findOne({ callerId }).then((user) => {
+        if (user) {
+          socket.user = callerId;
+          next();
+        } else {
+          next(new Error('Invalid caller ID'));
+        }
+      });
     } else {
-      console.log('Caller ID not provided');
-      next(new Error('Authentication error'));
+      next(new Error('Caller ID not provided'));
     }
   });
 
-  IO.on('connection', socket => {
+  IO.on('connection', (socket) => {
     console.log(socket.user, 'Connected');
     socket.join(socket.user);
 
-    socket.on('call', data => {
+    socket.on('call', (data) => {
       let calleeId = data.calleeId;
       let rtcMessage = data.rtcMessage;
 
@@ -37,7 +42,7 @@ module.exports.initIO = httpServer => {
       });
     });
 
-    socket.on('answerCall', data => {
+    socket.on('answerCall', (data) => {
       let callerId = data.callerId;
       let rtcMessage = data.rtcMessage;
 
@@ -47,7 +52,7 @@ module.exports.initIO = httpServer => {
       });
     });
 
-    socket.on('ICEcandidate', data => {
+    socket.on('ICEcandidate', (data) => {
       console.log('ICEcandidate data.calleeId', data.calleeId);
       let calleeId = data.calleeId;
       let rtcMessage = data.rtcMessage;
@@ -58,7 +63,7 @@ module.exports.initIO = httpServer => {
       });
     });
 
-    socket.on('endCall', props => {
+    socket.on('endCall', (props) => {
       IO.sockets.emit('callEnded');
       //socket.broadcast.emit('callEnded');
     });
