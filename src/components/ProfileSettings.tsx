@@ -4,14 +4,34 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { setUser } from '../reducers/userReducer';
 import Separator from './Separator';
+import { UPDATE_USER_NAME } from '../queries';
+import { useMutation } from '@apollo/client';
 
 const ProfileSettingsScreen = () => {
   const user = useSelector((state: RootState) => state.user);
   const dispatch = useDispatch();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user.fullName || '');
+  const [updateUser, { data, loading }] = useMutation(UPDATE_USER_NAME, {
+    awaitRefetchQueries: true,
+    onError: error => {
+      const { graphQLErrors, networkError } = error;
+      if (networkError) console.log(networkError.result);
+      if (graphQLErrors) console.log(graphQLErrors);
+      if (graphQLErrors)
+        graphQLErrors.forEach(({ message, locations, path }) =>
+          console.log(
+            `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`,
+          ),
+        );
+    },
+  });
 
   const handleSaveName = () => {
+    console.log('USER NAME IS BRRRRRRRT: ', name);
+    updateUser({
+      variables: { phoneNumber: user.phoneNumber, fullName: name },
+    });
     dispatch(setUser({ phoneNumber: user.phoneNumber, fullName: name }));
     setIsEditing(false);
   };

@@ -19,3 +19,12 @@ export const REGISTER_USER = gql`
     }
   }
 `;
+
+export const UPDATE_USER_NAME = gql`
+  mutation editUserName($phoneNumber: String!, $fullName: String!) {
+    editUserName(phoneNumber: $phoneNumber, fullName: $fullName) {
+      phoneNumber
+      fullName
+    }
+  }
+`;
