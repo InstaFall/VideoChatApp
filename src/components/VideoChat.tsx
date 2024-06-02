@@ -20,11 +20,11 @@ import VideoOff from '../../asset/VideoOff';
 import MicOn from '../../asset/MicOn';
 import MicOff from '../../asset/MicOff';
 
-const configuration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
+const fetchIceServers = async () => {
+  const response = await fetch(
+    'https://trkcllturn.metered.live/api/v1/turn/credentials?apiKey=87275a8c14f93aef84d24ca0c2826862484f',
+  );
+  return await response.json();
 };
 
 interface VideoChatProps {
