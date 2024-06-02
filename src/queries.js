@@ -5,6 +5,7 @@ export const GET_USER_BY_PHONE_NUMBER = gql`
     getUserByPhoneNumber(phoneNumber: $phoneNumber) {
       phoneNumber
       fullName
+      callerId
     }
   }
 `;
@@ -14,6 +15,7 @@ export const REGISTER_USER = gql`
     register(phoneNumber: $phoneNumber, fullName: $fullName) {
       phoneNumber
       fullName
+      callerId
     }
   }
 `;
