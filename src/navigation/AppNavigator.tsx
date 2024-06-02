@@ -32,7 +32,11 @@ const AppNavigator = () => {
           component={HomeScreen}
           options={{ headerShown: false }}
         />
-        <Stack.Screen name="CallMenu" component={CallMenu} />
+        <Stack.Screen
+          name="CallMenu"
+          component={CallMenu}
+          options={{ headerTitle: '' }}
+        />
         <Stack.Screen name="Calling" component={Calling} />
         <Stack.Screen name="IncomingCall" component={IncomingCall} />
         <Stack.Screen
@@ -43,6 +47,7 @@ const AppNavigator = () => {
         <Stack.Screen
           name="ProfileSettings"
           component={ProfileSettingsScreen}
+          options={{ headerTitle: '' }}
         />
         <Stack.Screen name="AppSettings" component={AppSettingsScreen} />
         <Stack.Screen name="DebugVideoChat" component={VideoChat} />
