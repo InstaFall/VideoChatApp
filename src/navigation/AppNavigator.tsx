@@ -37,8 +37,8 @@ const AppNavigator = () => {
           component={CallMenu}
           options={{ headerTitle: '' }}
         />
-        <Stack.Screen name="Calling" component={Calling} />
-        <Stack.Screen name="IncomingCall" component={IncomingCall} />
+        <Stack.Screen name="Calling" component={Calling} options={{ headerShown: false }} />
+        <Stack.Screen name="IncomingCall" component={IncomingCall} options={{ headerShown: false }} />
         <Stack.Screen
           name="VideoChat"
           component={VideoChat}
